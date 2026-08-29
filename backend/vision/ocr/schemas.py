@@ -7,6 +7,7 @@ class OCRFields(BaseModel):
     document_number: Optional[str] = None
     expiry_date: Optional[str] = None
     nationality: Optional[str] = None
+    gender: Optional[str] = None
 
 class OCRResult(BaseModel):
     raw_text: str

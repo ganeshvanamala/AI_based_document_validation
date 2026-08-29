@@ -126,11 +126,20 @@ export default function ScreeningDetails() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm mb-6 bg-slate-900 p-4 rounded-lg border border-slate-800">
-              <div className="text-slate-500">Name</div><div className="text-white font-medium text-right">{data.ocr.name}</div>
-              <div className="text-slate-500">DOB</div><div className="text-white font-medium text-right">{data.ocr.dob}</div>
-              <div className="text-slate-500">Nationality</div><div className="text-white font-medium text-right">{data.ocr.nationality}</div>
-              <div className="text-slate-500">Document No.</div><div className="text-white font-medium text-right">{data.ocr.passportNumber}</div>
-              <div className="text-slate-500">Expiry</div><div className="text-white font-medium text-right">{data.ocr.expiry}</div>
+              {Object.entries(data.ocr).map(([key, value]) => {
+                // Skip empty values or raw data if present
+                if (!value || key === 'rawText') return null;
+                // Format key nicely (e.g., passportNumber -> Passport Number)
+                const formattedKey = key
+                  .replace(/([A-Z])/g, ' $1')
+                  .replace(/^./, str => str.toUpperCase());
+                return (
+                  <React.Fragment key={key}>
+                    <div className="text-slate-500">{formattedKey}</div>
+                    <div className="text-white font-medium text-right">{value}</div>
+                  </React.Fragment>
+                );
+              })}
             </div>
             <div className="space-y-3">
               <h4 className="text-xs font-semibold uppercase text-slate-500 mb-2">Validation Checks</h4>
