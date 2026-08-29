@@ -101,12 +101,16 @@ function WebcamCapture({ file, onCapture }) {
 
   const startCamera = async () => {
     try {
+      setIsCameraOn(true); // Render the video element first
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsCameraOn(true);
-      }
+      // Use setTimeout to ensure the DOM has updated and videoRef is populated
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
     } catch (err) {
+      setIsCameraOn(false);
       console.error("Error accessing webcam", err);
       alert("Could not access webcam. Please ensure permissions are granted.");
     }

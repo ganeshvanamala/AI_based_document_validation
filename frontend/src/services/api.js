@@ -95,6 +95,9 @@ export const api = {
                base.riskScore = Math.max(base.riskScore, 95);
                base.riskLevel = 'High';
                base.recommendation = 'Reject - Face Verification Failed';
+               if (data.face_match.reason) {
+                   base.reasons[0].description = data.face_match.reason;
+               }
            }
         }
 
