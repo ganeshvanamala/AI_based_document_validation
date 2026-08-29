@@ -79,16 +79,15 @@ export const api = {
         };
 
         if (data.face_match && data.face_match.status !== "NOT_PROVIDED") {
-           // We override the first reason in the mock reasons array to show face match!
-           base.reasons = [
+           // We override the first reason in the mock evidence array to show face match!
+           base.evidence = [
               {
-                id: 'face-match-result',
-                type: data.face_match.status === 'MATCH' ? 'success' : 'danger',
                 title: data.face_match.status === 'MATCH' ? 'Face match confirmed' : 'Face mismatch detected',
+                severity: data.face_match.status === 'MATCH' ? 'Low' : 'High',
                 description: `Live photo matches document with ${(data.face_match.score).toFixed(1)}% confidence.`,
                 confidence: Math.round(data.face_match.score)
               },
-              ...base.reasons.filter(r => r.id !== 'face-match')
+              ...base.evidence.filter(e => e.title !== 'Face match')
            ];
            
            if (data.face_match.status === 'MISMATCH') {
@@ -96,7 +95,7 @@ export const api = {
                base.riskLevel = 'High';
                base.recommendation = 'Reject - Face Verification Failed';
                if (data.face_match.reason) {
-                   base.reasons[0].description = data.face_match.reason;
+                   base.evidence[0].description = data.face_match.reason;
                }
            }
         }
