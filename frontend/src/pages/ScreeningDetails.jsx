@@ -131,11 +131,22 @@ export default function ScreeningDetails() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-sm mb-6 bg-slate-900 p-4 rounded-lg border border-slate-800">
-              <div className="text-slate-500">Name</div><div className="text-white font-medium text-right">{data.ocr?.name || data.personName || "N/A"}</div>
-              <div className="text-slate-500">DOB</div><div className="text-white font-medium text-right">{data.ocr?.dob || "N/A"}</div>
-              <div className="text-slate-500">Nationality</div><div className="text-white font-medium text-right">{data.ocr?.nationality || "Indian"}</div>
-              <div className="text-slate-500">Document No.</div><div className="text-white font-medium text-right">{data.ocr?.passportNumber || "N/A"}</div>
-              <div className="text-slate-500">Expiry</div><div className="text-white font-medium text-right">{data.ocr?.expiry || "N/A"}</div>
+              {data.ocr && typeof data.ocr === 'object' ? (
+                Object.entries(data.ocr).map(([key, value]) => {
+                  if (!value || key === 'rawText') return null;
+                  const formattedKey = key
+                    .replace(/([A-Z])/g, ' $1')
+                    .replace(/^./, str => str.toUpperCase());
+                  return (
+                    <React.Fragment key={key}>
+                      <div className="text-slate-500">{formattedKey}</div>
+                      <div className="text-white font-medium text-right">{String(value)}</div>
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                <div className="col-span-2 text-slate-500 text-center">No OCR data extracted</div>
+              )}
             </div>
             <div className="space-y-3">
               <h4 className="text-xs font-semibold uppercase text-slate-500 mb-2">Validation Checks</h4>

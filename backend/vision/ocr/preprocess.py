@@ -29,10 +29,11 @@ class OCRPreprocessor:
         denoised = cv2.fastNlMeansDenoising(gray, h=10)
 
         # 4. Adaptive Thresholding (good for documents with uneven lighting)
-        thresh = cv2.adaptiveThreshold(
-            denoised, 255, 
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
-            cv2.THRESH_BINARY, 11, 2
-        )
+        # Tesseract 4+ LSTM actually prefers grayscale over binary thresholding
+        # thresh = cv2.adaptiveThreshold(
+        #     denoised, 255, 
+        #     cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+        #     cv2.THRESH_BINARY, 11, 2
+        # )
 
-        return thresh
+        return denoised
