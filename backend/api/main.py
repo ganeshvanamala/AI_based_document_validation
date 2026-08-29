@@ -268,7 +268,9 @@ async def upload_documents(
             "dob": person_dob,
             "nationality": ocr_result.fields.nationality or "Indian",
             "passportNumber": ocr_result.fields.document_number or "Not Found",
-            "expiry": ocr_result.fields.expiry_date or "N/A"
+            "expiry": ocr_result.fields.expiry_date or "N/A",
+            "gender": getattr(ocr_result.fields, "gender", None) or "Not Found",
+            "extractedText": ocr_result.raw_text
         },
         "validation": validation_checks,
         "tampering": {
