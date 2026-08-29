@@ -28,18 +28,22 @@ export default function ScreeningDetails() {
 
   if (!data) return null;
 
+  const riskScore = Number(data.riskScore ?? data.risk_score ?? 20);
+  const riskLevel = data.riskLevel || data.risk_level || (riskScore >= 70 ? 'High' : riskScore >= 35 ? 'Medium' : 'Low');
+  const strokeOffset = 283 - (283 * Math.min(100, Math.max(0, riskScore))) / 100;
+
   return (
     <PageContainer title={`Screening Case ${id}`}>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-white">{data.personName}</h2>
-          <p className="text-slate-400">Status: <span className="text-white font-medium">{data.status}</span></p>
+          <h2 className="text-2xl font-bold text-white">{data.personName || data.person_name || 'Applicant'}</h2>
+          <p className="text-slate-400">Status: <span className="text-white font-medium">{data.status || 'Analysis Complete'}</span></p>
         </div>
         <div className="flex gap-3">
           <Button variant="secondary" onClick={() => navigate(`/screening/${id}/report`)}>
             <FileText className="w-4 h-4 mr-2" /> View Report
           </Button>
-          {(data.riskLevel === 'High' || data.riskLevel === 'Medium') && data.status !== 'Manual verification recommended' && (
+          {(riskLevel === 'High' || riskLevel === 'Medium') && data.status !== 'Manual verification recommended' && (
             <Button onClick={() => navigate(`/screening/${id}/questions`)}>
               Continue to Additional Verification →
             </Button>
@@ -62,7 +66,7 @@ export default function ScreeningDetails() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         {/* Risk Score */}
         <Card className="lg:col-span-1 border-slate-700 bg-slate-800/50 relative overflow-hidden">
-          <div className={`absolute top-0 w-full h-1 ${data.riskLevel === 'High' ? 'bg-red-500' : data.riskLevel === 'Medium' ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
+          <div className={`absolute top-0 w-full h-1 ${riskLevel === 'High' ? 'bg-red-500' : riskLevel === 'Medium' ? 'bg-amber-500' : 'bg-emerald-500'}`}></div>
           <CardHeader>
             <CardTitle>Overall Risk Score</CardTitle>
           </CardHeader>
@@ -71,21 +75,21 @@ export default function ScreeningDetails() {
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="45" fill="none" stroke="#1e293b" strokeWidth="8" />
                 <circle cx="50" cy="50" r="45" fill="none" 
-                  stroke={data.riskLevel === 'High' ? '#ef4444' : data.riskLevel === 'Medium' ? '#f59e0b' : '#10b981'} 
+                  stroke={riskLevel === 'High' ? '#ef4444' : riskLevel === 'Medium' ? '#f59e0b' : '#10b981'} 
                   strokeWidth="8" 
                   strokeDasharray="283" 
-                  strokeDashoffset={283 - (283 * data.riskScore) / 100} 
+                  strokeDashoffset={strokeOffset} 
                   strokeLinecap="round" 
                 />
               </svg>
               <div className="absolute flex flex-col items-center justify-center text-center">
-                <span className="text-4xl font-bold text-white">{data.riskScore}</span>
+                <span className="text-4xl font-bold text-white">{riskScore}</span>
                 <span className="text-xs text-slate-400 uppercase tracking-wider">/ 100</span>
               </div>
             </div>
             <div className="mt-6 text-center">
-              <Badge variant={(data.riskLevel || data.risk_level) === 'High' ? 'danger' : (data.riskLevel || data.risk_level) === 'Medium' ? 'warning' : 'success'} className="mb-2 text-sm px-3 py-1">
-                {((data.riskLevel || data.risk_level) || 'LOW').toUpperCase()} RISK
+              <Badge variant={riskLevel === 'High' ? 'danger' : riskLevel === 'Medium' ? 'warning' : 'success'} className="mb-2 text-sm px-3 py-1">
+                {riskLevel.toUpperCase()} RISK
               </Badge>
               <p className="text-slate-300 text-sm mt-2">{data.recommendation || 'No recommendation available.'}</p>
             </div>
