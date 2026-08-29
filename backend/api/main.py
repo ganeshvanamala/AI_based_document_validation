@@ -25,6 +25,7 @@ from vision.core.normalization import InputNormalizer
 from vision.ocr.extractor import OCRExtractor
 from vision.classifier.classifier import DocumentClassifier
 from vision.tampering.detector import TamperingDetector
+from intelligence.face_matcher import FaceMatcher
 
 app = FastAPI(
     title="IdentityGuard AI Backend",
@@ -40,11 +41,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize singletons for vision
+# Initialize singletons
 normalizer = InputNormalizer(workspace_dir="backend_workspace")
 ocr_extractor = OCRExtractor()
 classifier = DocumentClassifier()
 tampering_detector = TamperingDetector()
+face_matcher = FaceMatcher()
 
 @app.get("/")
 async def root():
@@ -70,17 +72,37 @@ async def upload_documents(
     screening_id: str, 
     passport: UploadFile = File(...), 
     visa: Optional[UploadFile] = File(None),
-    face_photo: Optional[UploadFile] = File(None)
+    face: Optional[UploadFile] = File(None)
 ):
-    # Save the uploaded passport temporarily
     os.makedirs("temp_uploads", exist_ok=True)
-    file_path = f"temp_uploads/{passport.filename}"
-    with open(file_path, "wb") as buffer:
+    
+    # Process Document
+    doc_path = f"temp_uploads/{screening_id}_doc_{passport.filename}"
+    with open(doc_path, "wb") as buffer:
         shutil.copyfileobj(passport.file, buffer)
         
-    # 1. Normalize
-    norm_info = normalizer.normalize(file_path, document_id=screening_id)
-    working_path = norm_info.get("normalized_path", file_path)
+    norm_info = normalizer.normalize(doc_path, document_id=screening_id)
+    working_path = norm_info.get("normalized_path", doc_path)
+
+    if norm_info.get("type") == "pdf":
+        from vision.pdf.processor import PDFProcessor
+        pdf_proc = PDFProcessor()
+        images = pdf_proc.render_to_images(working_path, f"temp_uploads/{screening_id}_pages")
+        if images:
+            working_path = images[0]
+
+    # Process Live Face if provided
+    face_result = {"status": "NOT_PROVIDED", "score": 0, "distance": 0}
+    if face:
+        face_path = f"temp_uploads/{screening_id}_face_{face.filename}"
+        with open(face_path, "wb") as buffer:
+            shutil.copyfileobj(face.file, buffer)
+        
+        # Call Intelligence Module
+        face_result = face_matcher.compare(working_path, face_path)
+        
+        if os.path.exists(face_path):
+            os.remove(face_path)
 
     # 2. OCR
     ocr_result = ocr_extractor.extract(working_path)
@@ -91,7 +113,6 @@ async def upload_documents(
     # 4. Tampering
     tamp_result = tampering_detector.detect(working_path)
 
-    # Compile the final result for the frontend
     final_result = {
         "id": screening_id,
         "person_name": ocr_result.fields.name or "Unknown Person",
@@ -101,15 +122,14 @@ async def upload_documents(
         "recommendation": "Additional verification required" if tamp_result.status == "SUSPICIOUS" else "Approve",
         "ocr_data": ocr_result.model_dump(),
         "tampering_signals": tamp_result.model_dump(),
-        "document_type": class_result.document_type
+        "document_type": class_result.document_type,
+        "face_match": face_result
     }
     
-    # Save to mock DB so the GET endpoint can retrieve it
     await db_layer.create_screening(screening_id, final_result)
     
-    # Cleanup temp upload
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    if os.path.exists(doc_path):
+        os.remove(doc_path)
 
     return {"screening_id": screening_id, "status": "processing_complete"}
 

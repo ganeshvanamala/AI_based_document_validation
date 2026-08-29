@@ -44,38 +44,31 @@ export default function NewScreening() {
               <CardTitle>Document Upload</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <UploadCard 
-                  title="Passport / ID" 
-                  desc="Upload passport or ID image" 
+                  title="Upload Document" 
+                  desc="Upload image or PDF" 
                   file={files.passport}
                   required 
                   onFileSelect={(file) => handleFileChange('passport', file)}
                 />
-                <UploadCard 
-                  title="Visa" 
-                  desc="Upload visa document" 
-                  file={files.visa} 
-                  onFileSelect={(file) => handleFileChange('visa', file)}
+                
+                <WebcamCapture 
+                  file={files.face}
+                  onCapture={(file) => handleFileChange('face', file)}
                 />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Person Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-400 mb-4">You can leave these blank. The OCR engine will automatically extract this information from the uploaded image.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-50 pointer-events-none">
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Full Name</label>
-                  <input type="text" placeholder="Auto-extracted" className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-white" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-1">Date of Birth</label>
-                  <input type="text" placeholder="Auto-extracted" className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2 text-white" />
+
+                <div className="flex flex-col justify-center space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-400 mb-2">Document Type</label>
+                    <select className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-navy-500">
+                      <option>Auto-Detect (AI)</option>
+                      <option>Aadhaar / National ID</option>
+                      <option>Passport</option>
+                      <option>Driving Licence</option>
+                      <option>Visa</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -98,6 +91,85 @@ export default function NewScreening() {
         </div>
       </div>
     </PageContainer>
+  );
+}
+
+function WebcamCapture({ file, onCapture }) {
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setIsCameraOn(true);
+      }
+    } catch (err) {
+      console.error("Error accessing webcam", err);
+      alert("Could not access webcam. Please ensure permissions are granted.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      setIsCameraOn(false);
+    }
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext('2d');
+      canvasRef.current.width = videoRef.current.videoWidth;
+      canvasRef.current.height = videoRef.current.videoHeight;
+      context.drawImage(videoRef.current, 0, 0);
+      
+      canvasRef.current.toBlob((blob) => {
+        const capturedFile = new File([blob], "live_face.jpg", { type: "image/jpeg" });
+        onCapture(capturedFile);
+        stopCamera();
+      }, 'image/jpeg', 0.9);
+    }
+  };
+
+  if (file) {
+    const objectUrl = URL.createObjectURL(file);
+    return (
+      <div className="border-2 border-navy-500/50 bg-navy-500/5 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+        <img src={objectUrl} alt="Captured Face" className="w-24 h-24 object-cover rounded-full border-2 border-emerald-500 mb-3" />
+        <h4 className="text-sm font-medium text-white mb-1">Face Captured</h4>
+        <Button variant="outline" className="mt-2 text-xs py-1 h-auto" onClick={() => onCapture(null)}>Retake</Button>
+      </div>
+    );
+  }
+
+  if (isCameraOn) {
+    return (
+      <div className="border-2 border-slate-700 bg-slate-900/50 rounded-xl p-2 flex flex-col items-center">
+        <video ref={videoRef} autoPlay playsInline className="w-full h-32 object-cover rounded-lg bg-black mb-2" />
+        <canvas ref={canvasRef} className="hidden" />
+        <div className="flex gap-2 w-full">
+          <Button variant="secondary" className="flex-1 text-xs h-8" onClick={stopCamera}>Cancel</Button>
+          <Button className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-500 text-white" onClick={takePhoto}>Capture</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div 
+      onClick={startCamera}
+      className="border-2 border-dashed border-slate-700 bg-slate-900/50 hover:bg-slate-800/50 rounded-xl p-6 flex flex-col items-center justify-center text-center transition-colors cursor-pointer"
+    >
+      <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mb-3">
+        <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+      </div>
+      <h4 className="text-sm font-medium text-white mb-1">Live Face Photo</h4>
+      <p className="text-xs text-slate-500">Take picture with camera</p>
+      <div className="mt-3 text-xs font-medium text-navy-400">Open Camera</div>
+    </div>
   );
 }
 
