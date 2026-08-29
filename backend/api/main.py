@@ -79,13 +79,16 @@ async def create_screening():
 @app.post("/api/screening/{screening_id}/documents")
 async def upload_documents(
     screening_id: str, 
-    passport: UploadFile = File(...), 
-    visa: Optional[UploadFile] = File(None),
-    face: Optional[UploadFile] = File(None)
+    passport: Optional[UploadFile] = None, 
+    visa: Optional[UploadFile] = None,
+    face: Optional[UploadFile] = None
 ):
     os.makedirs("temp_uploads", exist_ok=True)
     
     # Process Document
+    if not passport or not getattr(passport, "filename", None):
+        raise HTTPException(status_code=400, detail="Passport or document image is required.")
+        
     doc_path = f"temp_uploads/{screening_id}_doc_{passport.filename}"
     with open(doc_path, "wb") as buffer:
         shutil.copyfileobj(passport.file, buffer)
@@ -102,7 +105,8 @@ async def upload_documents(
 
     # Save live face if provided
     saved_face_path = None
-    if face:
+    has_live_face = face and getattr(face, "filename", None)
+    if has_live_face:
         saved_face_path = f"temp_uploads/{screening_id}_face_{face.filename}"
         with open(saved_face_path, "wb") as buffer:
             shutil.copyfileobj(face.file, buffer)
@@ -320,11 +324,11 @@ async def upload_documents(
         },
         "validation": validation_checks,
         "tampering": {
-            "overall": "High" if tamp_result.status == "SUSPICIOUS" else "Low",
+            "overall": "High" if is_suspicious else "Low",
             "photo": "Low",
-            "text": "High" if any(s.type in ['metadata_anomaly', 'compression_inconsistency'] for s in signals) else "Low",
+            "text": "High" if any((s.get('type') if isinstance(s, dict) else getattr(s, 'type', '')) in ['metadata_anomaly', 'compression_inconsistency', 'font_inconsistency', 'altered_text'] for s in tamp_signals) else "Low",
             "stamp": "Low",
-            "metadata": "High" if any(s.type == 'metadata_anomaly' for s in signals) else "Low"
+            "metadata": "High" if any((s.get('type') if isinstance(s, dict) else getattr(s, 'type', '')) == 'metadata_anomaly' for s in tamp_signals) else "Low"
         },
         "faceMatch": {
             "score": round(face_result.get("score", 0)),

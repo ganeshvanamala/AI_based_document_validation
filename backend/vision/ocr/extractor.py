@@ -29,7 +29,7 @@ class OCRExtractor:
     """
     def __init__(self):
         self.preprocessor = OCRPreprocessor()
-        self.model = genai.GenerativeModel('gemini-3.6-flash') if api_key else None
+        self.model = genai.GenerativeModel('gemini-1.5-flash') if api_key else None
 
     def extract(self, image_path: str) -> OCRResult:
         """
