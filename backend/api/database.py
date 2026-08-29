@@ -37,14 +37,23 @@ class DatabaseLayer:
     async def get_screening(self, screening_id: str):
         if self.is_mock_mode:
             return self.mock_db["screenings"].get(screening_id)
-        # return await self.db.screenings.find_one({"_id": screening_id})
-        return None
+        
+        # Real MongoDB call
+        doc = await self.db.screenings.find_one({"_id": screening_id})
+        if doc:
+            # Re-map the _id to match our logic
+            doc["id"] = doc.pop("_id")
+        return doc
 
     async def create_screening(self, screening_id: str, data: dict):
         if self.is_mock_mode:
             self.mock_db["screenings"][screening_id] = data
             return data
-        # await self.db.screenings.insert_one({"_id": screening_id, **data})
+        
+        # Real MongoDB call (upsert)
+        db_doc = data.copy()
+        db_doc["_id"] = screening_id
+        await self.db.screenings.replace_one({"_id": screening_id}, db_doc, upsert=True)
         return data
 
 # Singleton instance

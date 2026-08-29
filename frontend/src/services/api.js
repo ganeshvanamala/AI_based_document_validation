@@ -77,27 +77,54 @@ export const api = {
           stamp: 'Low',
           metadata: signals.some(s => s.type === 'metadata_anomaly') ? 'High' : 'Low'
         };
+        base.evidence = []; // Clear all fake mock evidence!
+
+        // Map real tampering signals to evidence array
+        if (data.tampering_signals && data.tampering_signals.signals) {
+            data.tampering_signals.signals.forEach(sig => {
+                base.evidence.push({
+                    title: sig.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+                    severity: sig.severity === 'HIGH' ? 'High' : 'Medium',
+                    description: sig.reason,
+                    confidence: Math.round(sig.confidence * 100)
+                });
+            });
+        }
 
         if (data.face_match && data.face_match.status !== "NOT_PROVIDED") {
-           // We override the first reason in the mock evidence array to show face match!
-           base.evidence = [
-              {
+           base.evidence.push({
                 title: data.face_match.status === 'MATCH' ? 'Face match confirmed' : 'Face mismatch detected',
                 severity: data.face_match.status === 'MATCH' ? 'Low' : 'High',
-                description: `Live photo matches document with ${(data.face_match.score).toFixed(1)}% confidence.`,
+                description: data.face_match.reason || `Live photo matches document with ${(data.face_match.score).toFixed(1)}% confidence.`,
                 confidence: Math.round(data.face_match.score)
-              },
-              ...base.evidence.filter(e => e.title !== 'Face match')
-           ];
+           });
            
            if (data.face_match.status === 'MISMATCH') {
                base.riskScore = Math.max(base.riskScore, 95);
                base.riskLevel = 'High';
                base.recommendation = 'Reject - Face Verification Failed';
-               if (data.face_match.reason) {
-                   base.evidence[0].description = data.face_match.reason;
-               }
            }
+        }
+
+        // Map real Identity History
+        if (data.identity_history) {
+            if (data.identity_history.status === "MISMATCH") {
+                base.evidence.push({
+                    title: "DOB mismatch with historical record",
+                    severity: "High",
+                    description: data.identity_history.reason,
+                    confidence: 95
+                });
+                base.riskScore = Math.max(base.riskScore, 85);
+                base.riskLevel = 'High';
+            }
+            if (data.identity_history.history) {
+                base.history = data.identity_history.history.map((h, i) => ({
+                    year: "2026",
+                    title: `Screening Record #${i+1}`,
+                    details: h
+                }));
+            }
         }
 
         return base;

@@ -26,6 +26,7 @@ from vision.ocr.extractor import OCRExtractor
 from vision.classifier.classifier import DocumentClassifier
 from vision.tampering.detector import TamperingDetector
 from intelligence.face_matcher import FaceMatcher
+from intelligence.identity_manager import IdentityManager
 
 app = FastAPI(
     title="IdentityGuard AI Backend",
@@ -47,6 +48,7 @@ ocr_extractor = OCRExtractor()
 classifier = DocumentClassifier()
 tampering_detector = TamperingDetector()
 face_matcher = FaceMatcher()
+identity_manager = IdentityManager(db_layer)
 
 @app.get("/")
 async def root():
@@ -113,17 +115,24 @@ async def upload_documents(
     # 4. Tampering
     tamp_result = tampering_detector.detect(working_path)
 
+    # 5. Identity History (Phase 5)
+    history_result = await identity_manager.verify_history(
+        current_name=ocr_result.fields.name,
+        current_dob=ocr_result.fields.date_of_birth
+    )
+
     final_result = {
         "id": screening_id,
         "person_name": ocr_result.fields.name or "Unknown Person",
         "status": "Analysis Complete",
-        "risk_score": 85 if tamp_result.status == "SUSPICIOUS" else 20,
-        "risk_level": "HIGH" if tamp_result.status == "SUSPICIOUS" else "LOW",
-        "recommendation": "Additional verification required" if tamp_result.status == "SUSPICIOUS" else "Approve",
+        "risk_score": 85 if tamp_result.status == "SUSPICIOUS" or history_result.get("status") == "MISMATCH" else 20,
+        "risk_level": "HIGH" if tamp_result.status == "SUSPICIOUS" or history_result.get("status") == "MISMATCH" else "LOW",
+        "recommendation": "Additional verification required" if tamp_result.status == "SUSPICIOUS" or history_result.get("status") == "MISMATCH" else "Approve",
         "ocr_data": ocr_result.model_dump(),
         "tampering_signals": tamp_result.model_dump(),
         "document_type": class_result.document_type,
-        "face_match": face_result
+        "face_match": face_result,
+        "identity_history": history_result
     }
     
     await db_layer.create_screening(screening_id, final_result)

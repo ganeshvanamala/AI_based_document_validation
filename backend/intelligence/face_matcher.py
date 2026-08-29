@@ -26,17 +26,23 @@ class FaceMatcher:
 
         # 1. Actually check if a face exists in the live webcam photo!
         live_img = cv2.imread(live_image_path)
-        if live_img is not None:
-            gray = cv2.cvtColor(live_img, cv2.COLOR_BGR2GRAY)
-            faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4)
-            
-            if len(faces) == 0:
-                # No face detected in the webcam picture!
-                return {
-                    "status": "MISMATCH",
-                    "score": 12.5,
-                    "reason": "Liveness Check Failed: No human face detected in the live webcam photo. Ensure the camera is not blocked."
-                }
+        if live_img is None:
+            return {
+                "status": "ERROR",
+                "score": 0.0,
+                "reason": "Could not read the captured webcam image. Please try again."
+            }
+
+        gray = cv2.cvtColor(live_img, cv2.COLOR_BGR2GRAY)
+        faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4)
+        
+        if len(faces) == 0:
+            # No face detected in the webcam picture!
+            return {
+                "status": "MISMATCH",
+                "score": 12.5,
+                "reason": "Liveness Check Failed: No human face detected in the live webcam photo. Ensure the camera is not blocked."
+            }
 
         # 2. If a face IS detected, simulate a DeepFace verification score
         score = random.uniform(85.0, 98.0)
