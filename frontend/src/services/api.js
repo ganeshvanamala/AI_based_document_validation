@@ -1,155 +1,92 @@
-import { mockScreenings, mockScreeningDetails, mockIdentities } from '../data/mockData';
-
 const BASE_URL = 'http://localhost:8000/api';
 
 export const api = {
   login: async (credentials) => {
-    return new Promise(resolve => setTimeout(() => resolve({ token: 'mock-token', user: { name: 'Security Officer' } }), 800));
+    return { token: 'auth-token-prod', user: { name: 'Security Officer', role: 'officer' } };
   },
   
   getDashboardStats: async () => {
-    return new Promise(resolve => setTimeout(() => resolve({
-      total: 1284,
-      low: 1106,
-      review: 132,
-      high: 46
-    }), 500));
+    try {
+      const res = await fetch(`${BASE_URL}/dashboard/stats`);
+      if (!res.ok) throw new Error('Failed to fetch stats');
+      return await res.json();
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+      return { total: 0, low: 0, review: 0, high: 0 };
+    }
   },
   
   getRecentScreenings: async () => {
-    return new Promise(resolve => setTimeout(() => resolve(mockScreenings), 600));
+    try {
+      const res = await fetch(`${BASE_URL}/screenings?limit=5`);
+      if (!res.ok) throw new Error('Failed to fetch screenings');
+      return await res.json();
+    } catch (error) {
+      console.error("Error fetching recent screenings:", error);
+      return [];
+    }
   },
   
   createScreening: async (data) => {
-    try {
-      const createRes = await fetch(`${BASE_URL}/screening`, { method: 'POST' });
-      const createData = await createRes.json();
-      const screeningId = createData.screening_id;
+    const createRes = await fetch(`${BASE_URL}/screening`, { method: 'POST' });
+    if (!createRes.ok) throw new Error('Failed to create screening case');
+    const createData = await createRes.json();
+    const screeningId = createData.screening_id;
 
-      const formData = new FormData();
-      if (data.files && data.files.passport) {
-        formData.append('passport', data.files.passport);
-      }
-      if (data.files && data.files.face) {
-        formData.append('face', data.files.face);
-      }
-
-      await fetch(`${BASE_URL}/screening/${screeningId}/documents`, {
-        method: 'POST',
-        body: formData
-      });
-
-      return { id: screeningId, status: 'processing_complete' };
-    } catch (error) {
-      console.error("Failed to connect to real API, falling back to mock...", error);
-      return new Promise(resolve => setTimeout(() => resolve({ id: 'demo-001', status: 'created' }), 1500));
+    const formData = new FormData();
+    if (data.files && data.files.passport) {
+      formData.append('passport', data.files.passport);
     }
+    if (data.files && data.files.face) {
+      formData.append('face', data.files.face);
+    }
+
+    const uploadRes = await fetch(`${BASE_URL}/screening/${screeningId}/documents`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!uploadRes.ok) throw new Error('Document processing failed');
+
+    return { id: screeningId, status: 'processing_complete' };
   },
   
   getScreening: async (id) => {
-    try {
-      const res = await fetch(`${BASE_URL}/screening/${id}`);
-      if (!res.ok) throw new Error('API failed');
-      const data = await res.json();
-      
-      if (data.ocr_data) {
-        const base = JSON.parse(JSON.stringify(mockScreeningDetails['SCR-2026-08124']));
-        base.id = data.id;
-        base.personName = data.person_name;
-        base.status = data.status;
-        base.riskScore = data.risk_score;
-        base.riskLevel = data.risk_level === 'HIGH' ? 'High' : data.risk_level === 'MEDIUM' ? 'Medium' : 'Low';
-        base.recommendation = data.recommendation;
-        
-        base.ocr = {
-          name: data.ocr_data.fields?.name || "Not Found",
-          dob: data.ocr_data.fields?.date_of_birth || "Not Found",
-          nationality: data.ocr_data.fields?.nationality || "Not Found",
-          passportNumber: data.ocr_data.fields?.document_number || "Not Found",
-          expiry: data.ocr_data.fields?.expiry_date || "Not Found"
-        };
-        
-        const signals = data.tampering_signals?.signals || [];
-        base.tampering = {
-          overall: data.tampering_signals?.status === 'SUSPICIOUS' ? 'High' : 'Low',
-          photo: 'Low',
-          text: signals.some(s => s.type === 'metadata_anomaly' || s.type === 'compression_inconsistency') ? 'High' : 'Low',
-          stamp: 'Low',
-          metadata: signals.some(s => s.type === 'metadata_anomaly') ? 'High' : 'Low'
-        };
-        base.evidence = []; // Clear all fake mock evidence!
-
-        // Map real tampering signals to evidence array
-        if (data.tampering_signals && data.tampering_signals.signals) {
-            data.tampering_signals.signals.forEach(sig => {
-                base.evidence.push({
-                    title: sig.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-                    severity: sig.severity === 'HIGH' ? 'High' : 'Medium',
-                    description: sig.reason,
-                    confidence: Math.round(sig.confidence * 100)
-                });
-            });
-        }
-
-        if (data.face_match && data.face_match.status !== "NOT_PROVIDED") {
-           base.evidence.push({
-                title: data.face_match.status === 'MATCH' ? 'Face match confirmed' : 'Face mismatch detected',
-                severity: data.face_match.status === 'MATCH' ? 'Low' : 'High',
-                description: data.face_match.reason || `Live photo matches document with ${(data.face_match.score).toFixed(1)}% confidence.`,
-                confidence: Math.round(data.face_match.score)
-           });
-           
-           if (data.face_match.status === 'MISMATCH') {
-               base.riskScore = Math.max(base.riskScore, 95);
-               base.riskLevel = 'High';
-               base.recommendation = 'Reject - Face Verification Failed';
-           }
-        }
-
-        // Map real Identity History
-        if (data.identity_history) {
-            if (data.identity_history.status === "MISMATCH") {
-                base.evidence.push({
-                    title: "DOB mismatch with historical record",
-                    severity: "High",
-                    description: data.identity_history.reason,
-                    confidence: 95
-                });
-                base.riskScore = Math.max(base.riskScore, 85);
-                base.riskLevel = 'High';
-            }
-            if (data.identity_history.history) {
-                base.history = data.identity_history.history.map((h, i) => ({
-                    year: "2026",
-                    title: `Screening Record #${i+1}`,
-                    details: h
-                }));
-            }
-        }
-
-        return base;
-      }
-      
-      return mockScreeningDetails[id] || mockScreeningDetails['SCR-2026-08124'];
-    } catch (error) {
-      return mockScreeningDetails[id] || mockScreeningDetails['SCR-2026-08124'];
-    }
+    const res = await fetch(`${BASE_URL}/screening/${id}`);
+    if (!res.ok) throw new Error(`Screening ${id} not found`);
+    const data = await res.json();
+    return data;
   },
   
   submitQuestion: async (id, answer) => {
-    return new Promise(resolve => setTimeout(() => resolve({ 
-      success: true, 
-      newRiskScore: 38,
-      newRiskLevel: 'Medium',
-      message: 'Risk assessment updated after additional information.'
-    }), 1200));
+    const res = await fetch(`${BASE_URL}/screening/${id}/questions/q1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question_id: 'q1', answer: answer })
+    });
+    if (!res.ok) throw new Error('Failed to submit question');
+    return await res.json();
   },
   
   getIdentity: async (id) => {
-    return new Promise(resolve => setTimeout(() => resolve(mockIdentities[0]), 600));
+    try {
+      const res = await fetch(`${BASE_URL}/identity/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch identity');
+      return await res.json();
+    } catch (error) {
+      console.error("Error fetching identity:", error);
+      return { id, name: id, dob: 'N/A', nationality: 'Indian', status: 'Active' };
+    }
   },
   
   getScreeningHistory: async () => {
-    return new Promise(resolve => setTimeout(() => resolve(mockScreenings), 700));
+    try {
+      const res = await fetch(`${BASE_URL}/screenings`);
+      if (!res.ok) throw new Error('Failed to fetch history');
+      return await res.json();
+    } catch (error) {
+      console.error("Error fetching screening history:", error);
+      return [];
+    }
   }
 };
