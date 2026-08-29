@@ -17,7 +17,7 @@ export default function Sidebar() {
             <NavItem to="/dashboard" icon={<LayoutDashboard size={20} />} label="Dashboard" />
             <NavItem to="/screening/new" icon={<FilePlus size={20} />} label="New Screening" />
             <NavItem to="/history" icon={<History size={20} />} label="Screening History" />
-            <NavItem to="/identity/ID-2024-001" icon={<Users size={20} />} label="Identity Records" />
+            <NavItem to="/identities" icon={<Users size={20} />} label="Identity Records" />
           </nav>
         </div>
         

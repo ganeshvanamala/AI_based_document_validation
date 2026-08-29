@@ -79,6 +79,17 @@ export const api = {
     }
   },
   
+  getIdentities: async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/identities`);
+      if (!res.ok) throw new Error('Failed to fetch identities');
+      return await res.json();
+    } catch (error) {
+      console.error("Error fetching identities:", error);
+      return [];
+    }
+  },
+  
   getScreeningHistory: async () => {
     try {
       const res = await fetch(`${BASE_URL}/screenings`);

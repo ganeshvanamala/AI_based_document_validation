@@ -7,6 +7,7 @@ import ScreeningDetails from './pages/ScreeningDetails';
 import Questions from './pages/Questions';
 import Report from './pages/Report';
 import IdentityProfile from './pages/IdentityProfile';
+import IdentityList from './pages/IdentityList';
 import History from './pages/History';
 import Settings from './pages/Settings';
 
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/screening/:id" element={<ScreeningDetails />} />
         <Route path="/screening/:id/questions" element={<Questions />} />
         <Route path="/screening/:id/report" element={<Report />} />
+        <Route path="/identities" element={<IdentityList />} />
         <Route path="/identity/:id" element={<IdentityProfile />} />
         <Route path="/history" element={<History />} />
         <Route path="/settings" element={<Settings />} />

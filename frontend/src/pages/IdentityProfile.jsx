@@ -65,30 +65,23 @@ export default function IdentityProfile() {
             </CardHeader>
             <CardContent>
               <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-slate-800">
-                <div className="relative flex items-center group is-active">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full border border-slate-800 bg-slate-900 shrink-0 relative z-10">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div className="ml-4 p-4 rounded-xl border border-slate-800 bg-slate-900 w-full shadow-sm">
-                    <div className="flex justify-between items-center mb-1">
-                      <h4 className="font-medium text-white">Initial Verification</h4>
-                      <span className="text-xs text-slate-500">{data.verificationDate}</span>
+                {(data.history || []).map((item, idx) => (
+                  <div key={idx} className="relative flex items-center group is-active">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border border-slate-800 bg-slate-900 shrink-0 relative z-10">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                     </div>
-                    <p className="text-sm text-slate-400">Identity successfully established via Passport.</p>
-                  </div>
-                </div>
-                
-                <div className="relative flex items-center group">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full border border-slate-800 bg-slate-900 shrink-0 relative z-10">
-                    <div className="w-2 h-2 rounded-full bg-slate-500"></div>
-                  </div>
-                  <div className="ml-4 p-4 rounded-xl border border-slate-800 bg-slate-900/50 w-full">
-                    <div className="flex justify-between items-center mb-1">
-                      <h4 className="font-medium text-slate-300">Profile Created</h4>
-                      <span className="text-xs text-slate-500">2024-05-09</span>
+                    <div className="ml-4 p-4 rounded-xl border border-slate-800 bg-slate-900 w-full shadow-sm">
+                      <div className="flex justify-between items-center mb-1">
+                        <h4 className="font-medium text-white">{item.title}</h4>
+                        <span className="text-xs text-slate-500">{item.year}</span>
+                      </div>
+                      <p className="text-sm text-slate-400 whitespace-pre-line">{item.details}</p>
                     </div>
                   </div>
-                </div>
+                ))}
+                {(!data.history || data.history.length === 0) && (
+                  <div className="text-slate-500 text-sm text-center py-4">No historical records found.</div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -98,8 +91,9 @@ export default function IdentityProfile() {
               <CardTitle>Relationships</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-slate-950 rounded-lg p-4 border border-slate-800 text-center text-slate-400 text-sm">
-                Relationship graph loading placeholder...
+              <div className="bg-slate-950 rounded-lg p-6 border border-slate-800 text-center text-slate-400 text-sm">
+                <p className="text-slate-300 font-medium mb-1">Primary Verified Identity</p>
+                <p className="text-xs text-slate-500">Self / Direct Applicant Record registered in MongoDB Atlas.</p>
               </div>
             </CardContent>
           </Card>
