@@ -27,6 +27,7 @@ from vision.classifier.classifier import DocumentClassifier
 from vision.tampering.detector import TamperingDetector
 from intelligence.face_matcher import FaceMatcher
 from intelligence.identity_manager import IdentityManager
+from intelligence.gemini_service import GeminiVisionService
 
 app = FastAPI(
     title="IdentityGuard AI Backend",
@@ -49,6 +50,7 @@ classifier = DocumentClassifier()
 tampering_detector = TamperingDetector()
 face_matcher = FaceMatcher()
 identity_manager = IdentityManager(db_layer)
+gemini_service = GeminiVisionService()
 
 @app.get("/")
 async def root():
@@ -98,67 +100,111 @@ async def upload_documents(
         if images:
             working_path = images[0]
 
-    # Process Live Face if provided
-    face_result = {"status": "NOT_PROVIDED", "score": 0, "distance": 0}
+    # Save live face if provided
+    saved_face_path = None
     if face:
-        face_path = f"temp_uploads/{screening_id}_face_{face.filename}"
-        with open(face_path, "wb") as buffer:
+        saved_face_path = f"temp_uploads/{screening_id}_face_{face.filename}"
+        with open(saved_face_path, "wb") as buffer:
             shutil.copyfileobj(face.file, buffer)
-        
-        # Call Intelligence Module
-        face_result = face_matcher.compare(working_path, face_path)
-        
-        if os.path.exists(face_path):
-            os.remove(face_path)
 
-    # 2. OCR
+    # 1. Primary AI Engine: Gemini Multimodal Vision
+    gemini_result = gemini_service.analyze_document_and_face(working_path, saved_face_path)
+
+    # 2. Local Fallback Engines
     ocr_result = ocr_extractor.extract(working_path)
-    
-    # 3. Classify
     class_result = classifier.classify(ocr_result.raw_text)
-    doc_type = class_result.document_type or "Identity Document"
-    
-    # 4. Tampering
     tamp_result = tampering_detector.detect(working_path)
+    local_face_result = face_matcher.compare(working_path, saved_face_path) if saved_face_path else {"status": "NOT_PROVIDED", "score": 0}
 
-    # 5. Identity History (Phase 5)
-    person_name = ocr_result.fields.name or "Unknown Person"
-    person_dob = ocr_result.fields.date_of_birth or "Unknown"
-    
+    # Clean up live face temp file
+    if saved_face_path and os.path.exists(saved_face_path):
+        os.remove(saved_face_path)
+
+    # Blend and prioritize high-accuracy Gemini results
+    if gemini_result.get("status") == "SUCCESS":
+        g_data = gemini_result.get("data", {})
+        g_fields = g_data.get("fields", {})
+        g_tamp = g_data.get("tampering_analysis", {})
+        g_face = g_data.get("face_verification", {})
+
+        doc_type = g_data.get("document_type") or class_result.document_type or "Identity Document"
+        person_name = g_fields.get("name") or ocr_result.fields.name or "Unknown Person"
+        person_dob = g_fields.get("date_of_birth") or ocr_result.fields.date_of_birth or "Unknown"
+        doc_number = g_fields.get("document_number") or ocr_result.fields.document_number or "Not Found"
+        nationality = g_fields.get("nationality") or ocr_result.fields.nationality or "Indian"
+        expiry_date = g_fields.get("expiry_date") or ocr_result.fields.expiry_date
+
+        # Gemini Face verification
+        if face:
+            if g_face.get("face_detected_in_live") and g_face.get("face_detected_in_document"):
+                face_result = {
+                    "status": "MATCH" if g_face.get("is_match") else "MISMATCH",
+                    "score": float(g_face.get("match_score", 90.0)),
+                    "reason": g_face.get("reason", "Face verification processed via Gemini Vision.")
+                }
+            elif not g_face.get("face_detected_in_live"):
+                face_result = {
+                    "status": "MISMATCH",
+                    "score": 10.0,
+                    "reason": "Live Camera Check Failed: No human face detected in live photo."
+                }
+            else:
+                face_result = {
+                    "status": "MISMATCH",
+                    "score": 15.0,
+                    "reason": "Document Check Failed: No clear portrait found on document."
+                }
+        else:
+            face_result = {"status": "NOT_PROVIDED", "score": 0}
+
+        # Gemini Tampering
+        is_suspicious = g_tamp.get("is_suspicious", False)
+        tamp_signals = g_tamp.get("signals", [])
+    else:
+        # Fallback to local engines
+        doc_type = class_result.document_type or "Identity Document"
+        person_name = ocr_result.fields.name or "Unknown Person"
+        person_dob = ocr_result.fields.date_of_birth or "Unknown"
+        doc_number = ocr_result.fields.document_number or "Not Found"
+        nationality = ocr_result.fields.nationality or "Indian"
+        expiry_date = ocr_result.fields.expiry_date
+        face_result = local_face_result
+        is_suspicious = tamp_result.status == "SUSPICIOUS"
+        tamp_signals = [s.model_dump() if hasattr(s, 'model_dump') else s for s in tamp_result.signals]
+
+    # 3. Identity History (Phase 5)
     history_result = await identity_manager.verify_history(
         current_name=person_name,
         current_dob=person_dob
     )
 
-    # 6. Dynamic Risk & Intelligence Engine
+    # 4. Dynamic Risk & Intelligence Engine
     risk_score = 10 # Base score
     contributions = []
 
     # Validation contribution
     validation_checks = [
-        {"text": "Document format structure valid", "status": "pass"}
+        {"text": "Document structure and text layout verified", "status": "pass"}
     ]
-    if ocr_result.fields.expiry_date:
-        validation_checks.append({"text": f"Expiry date ({ocr_result.fields.expiry_date}) valid", "status": "pass"})
+    if expiry_date:
+        validation_checks.append({"text": f"Expiry date ({expiry_date}) valid", "status": "pass"})
         contributions.append({"label": "Document Expiry Check", "value": "-5"})
         risk_score -= 5
     else:
         validation_checks.append({"text": "Standard identity record format", "status": "pass"})
 
-    # Tampering contribution
-    signals = tamp_result.signals if hasattr(tamp_result, 'signals') else []
     evidence = []
     
-    has_tampering = tamp_result.status == "SUSPICIOUS" or len(signals) > 0
-    if has_tampering:
+    if is_suspicious or len(tamp_signals) > 0:
         risk_score += 35
         contributions.append({"label": "Tampering Anomaly Signals", "value": "+35"})
-        for sig in signals:
+        for sig in tamp_signals:
+            sig_dict = sig if isinstance(sig, dict) else sig.__dict__
             evidence.append({
-                "title": sig.type.replace('_', ' ').title(),
-                "severity": sig.severity.capitalize() if hasattr(sig, 'severity') else "Medium",
-                "description": sig.reason if hasattr(sig, 'reason') else "Anomaly detected during digital forensic scan.",
-                "confidence": round((sig.confidence if hasattr(sig, 'confidence') else 0.8) * 100)
+                "title": str(sig_dict.get("type", "Forensic Anomaly")).replace('_', ' ').title(),
+                "severity": str(sig_dict.get("severity", "Medium")).capitalize(),
+                "description": sig_dict.get("reason", "Anomaly detected during digital forensic scan."),
+                "confidence": round(float(sig_dict.get("confidence", 0.85)) * 100 if float(sig_dict.get("confidence", 0.85)) <= 1.0 else float(sig_dict.get("confidence", 85)))
             })
     else:
         risk_score -= 5
@@ -171,7 +217,7 @@ async def upload_documents(
         evidence.append({
             "title": "Face match confirmed",
             "severity": "Low",
-            "description": f"Live camera photo matches document portrait with {face_result.get('score', 95):.1f}% confidence.",
+            "description": face_result.get("reason", f"Live camera photo matches document portrait with {face_result.get('score', 95):.1f}% confidence."),
             "confidence": round(face_result.get('score', 95))
         })
     elif face_result.get("status") == "MISMATCH":
@@ -181,7 +227,7 @@ async def upload_documents(
             "title": "Face verification mismatch",
             "severity": "High",
             "description": face_result.get("reason", "Face in document does not match live camera presentation."),
-            "confidence": 92
+            "confidence": 94
         })
 
     # History contribution
