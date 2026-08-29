@@ -12,6 +12,16 @@ class DatabaseLayer:
         self.client = None
         self.db = None
         
+        # Always initialize in-memory fallback cache
+        self.mock_db = {
+            "identities": {},
+            "documents": {},
+            "screenings": {},
+            "relationships": {},
+            "verification_history": {},
+            "audit_records": {}
+        }
+        
         if not self.is_mock_mode:
             try:
                 from motor.motor_asyncio import AsyncIOMotorClient
@@ -21,18 +31,6 @@ class DatabaseLayer:
             except Exception as e:
                 print(f"Failed to connect to MongoDB, falling back to MOCK MODE: {e}")
                 self.is_mock_mode = True
-        
-        if self.is_mock_mode:
-            print("Database Layer running in MOCK MODE.")
-            # In-memory mock storage
-            self.mock_db = {
-                "identities": {},
-                "documents": {},
-                "screenings": {},
-                "relationships": {},
-                "verification_history": {},
-                "audit_records": {}
-            }
 
     async def get_screening(self, screening_id: str):
         if self.is_mock_mode:
